@@ -1,0 +1,79 @@
+--- 
+- 
+  become: true
+  become_method: sudo
+  become_user: root
+  hosts: servers
+  name: "perform yum update / reboot server"
+  remote_user: root
+  tasks: 
+    - 
+      name: "Perform yum update of all packages"
+      yum: 
+        name: "*"
+        state: latest
+#    - 
+#     name: Download prometheus 
+#      get_url:
+#        url: https://github.com/prometheus/prometheus/releases/download/v2.18.1/prometheus-2.18.1.linux-amd64.tar.gz
+#        dest: /root
+    - 
+      unarchive:
+        src: https://github.com/prometheus/prometheus/releases/download/v2.18.1/prometheus-2.18.1.linux-amd64.tar.gz
+        dest: /root
+        remote_src: yes
+    - 
+      file:
+        path: /etc/prometheus
+        state: directory
+    - 
+      file:
+        path: /var/lib/prometheus
+        state: directory
+    - 
+      command: sudo cp /root/prometheus-2.18.1.linux-amd64/prometheus /usr/local/bin
+    - 
+      command: sudo cp /root/prometheus-2.18.1.linux-amd64/promtool /usr/local/bin
+    - 
+      command: sudo cp -r /root/prometheus-2.18.1.linux-amd64/consoles /etc/prometheus
+    - 
+      command: sudo cp -r /root/prometheus-2.18.1.linux-amd64/console_libraries /etc/prometheus 
+    -
+      file:
+        path: /etc/prometheus/prometheus.yml
+        state: touch
+    - blockinfile:
+        path: /etc/prometheus/prometheus.yml
+        block: |
+          global:
+            scrape_interval: 10s
+          scrape_configs:
+            - job_name: 'prom'
+              scrape_interval: 10s
+              static_configs:
+                - targets: ['localhost:9090']
+    - file:
+        path: /etc/systemd/system/prometheus.service
+        state: touch
+    - blockinfile:
+        path: /etc/systemd/system/prometheus.service
+        block: | 
+          [Unit]
+          Description=Prometheus 
+          Wants=network-online.target
+          After=network-online.target 
+          [Service]
+          ExecStart=/usr/local/bin/prometheus \
+          --config.file /etc/prometheus/prometheus.yml \
+          --storage.tsdb.path /var/lib/prometheus/ \
+          --web.console.templates=/etc/prometheus/consoles \
+          --web.console.libraries=/etc/prometheus/console_libraries 
+          [Install]
+          WantedBy=multi-user.target
+    - systemd:
+        name: prometheus
+        state: started
+        enabled: yes
+    - command: sudo firewall-cmd --zone=public --add-port=9090/tcp --permanent
+    - command: systemctl reload firewalld
+
