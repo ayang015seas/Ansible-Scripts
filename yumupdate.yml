@@ -1,0 +1,18 @@
+--- 
+- 
+  become: true
+  become_method: sudo
+  become_user: root
+  hosts: my_hosts
+  name: "perform yum update / reboot server"
+  remote_user: lnxcfg
+  tasks: 
+    - 
+      name: "Perform yum update of all packages"
+      yum: 
+        name: "*"
+        state: latest
+    - 
+      command: "/sbin/shutdown -r +1"
+      ignore_errors: true
+      name: "Reboot server"
